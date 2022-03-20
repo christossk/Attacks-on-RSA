@@ -1,0 +1,42 @@
+import binascii
+from pwn import *
+from Crypto.Util.number import inverse, long_to_bytes
+import base64
+
+n = 26507591511689883990023896389022361811173033984051016489514421457013639621509962613332324662222154683066173937658495362448733162728817642341239457485221865493926211958117034923747221236176204216845182311004742474549095130306550623190917480615151093941494688906907516349433681015204941620716162038586590895058816430264415335805881575305773073358135217732591500750773744464142282514963376379623449776844046465746330691788777566563856886778143019387464133144867446731438967247646981498812182658347753229511846953659235528803754112114516623201792727787856347729085966824435377279429992530935232902223909659507613583396967
+e = 65537
+k = 5 # change this if you get "no closing quotation"
+
+def blind(message):
+    # blinds the message by multiplying by k^e mod n
+    message = int(message.encode('hex'), 16) # original message in hex
+    message = message * pow(k, e, n) # blinded message in hex
+    message = long_to_bytes(message) # back to string
+    message = "'" + message + "'"  # to get around shlex.split
+    message = base64.b64encode(message)
+    return message
+
+def unblind(blinded_sgn):
+    # unblind by m / (k % n)
+    return str(int(blinded_sgn, 10) * inverse(k, n))
+
+msg = "cat flag"
+r = remote("blind.q.2019.volgactf.ru", 7070)
+r.recvuntil("Enter your command:")
+r.send("1 sign\n")
+r.recvuntil("Enter your command to sign:")
+blinded_msg = blind(msg)
+r.send(blinded_msg + "\n")
+signed_blinded = r.recvuntil("Enter").strip("Enter")
+print("signed blinded: " + signed_blinded)
+r.close()
+
+signature = unblind(signed_blinded)
+print("unblinded signature: " + signature)
+
+r = remote("blind.q.2019.volgactf.ru", 7070)
+r.recvuntil("Enter your command:")
+r.send(signature + " " + msg + "\n")
+a = r.recvuntil("Enter").strip("Enter")
+print(a) # flag should print here!
+r.close()
